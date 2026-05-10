@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "449591193589",
+    "project_id": "scarla-psi",
+    "storage_bucket": "scarla-psi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:449591193589:android:ee5300db8108c897003abc",
+        "android_client_info": {
+          "package_name": "com.kelompok2.scarla"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBU_3d0HMo1LdHqUl1TOhumXeYUhAjhJi0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
