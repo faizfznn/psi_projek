@@ -70,10 +70,15 @@ sealed class Screen(val route: String) {
             return "material/$encoded"
         }
     }
-    object MaterialQuiz : Screen("quiz/{quizId}") {
-        fun createRoute(quizId: String): String {
-            val encoded = java.net.URLEncoder.encode(quizId, "UTF-8")
-            return "quiz/$encoded"
+    object MaterialQuiz : Screen("quiz/{quizId}?materialId={materialId}") {
+        fun createRoute(quizId: String, materialId: String? = null): String {
+            val encodedQuiz = java.net.URLEncoder.encode(quizId, "UTF-8")
+            return if (materialId.isNullOrBlank()) {
+                "quiz/$encodedQuiz"
+            } else {
+                val encodedMaterial = java.net.URLEncoder.encode(materialId, "UTF-8")
+                "quiz/$encodedQuiz?materialId=$encodedMaterial"
+            }
         }
     }
     object HtmlScreen : Screen("html_screen")
@@ -339,11 +344,17 @@ fun AppNavigation() {
             arguments = listOf(
                 androidx.navigation.navArgument("quizId") {
                     type = androidx.navigation.NavType.StringType
+                },
+                androidx.navigation.navArgument("materialId") {
+                    type = androidx.navigation.NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }
             )
         ) { backStackEntry ->
             val quizId = backStackEntry.arguments?.getString("quizId") ?: "html"
-            QuizHtmlScreen(navController = navController, quizId = quizId)
+            val materialId = backStackEntry.arguments?.getString("materialId")
+            QuizHtmlScreen(navController = navController, quizId = quizId, materialId = materialId)
         }
 
         composable(Screen.Achievement.route) {

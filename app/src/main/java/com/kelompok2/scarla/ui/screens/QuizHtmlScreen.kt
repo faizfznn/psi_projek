@@ -40,7 +40,8 @@ data class QuizQuestion(
 @Composable
 fun QuizHtmlScreen(
     navController: NavController,
-    quizId: String
+    quizId: String,
+    materialId: String? = null
 ) {
 
     val scope = rememberCoroutineScope()
@@ -419,7 +420,7 @@ fun QuizHtmlScreen(
                                     throw IllegalStateException("Submit response is empty")
                                 }
 
-                                FirestoreInitializer.recordLessonCompleted(quizId)
+                                FirestoreInitializer.recordLessonCompleted(materialId ?: quizId)
 
                                 val scorePart = response.score?.let { "Skor: $it" } ?: "Quiz selesai"
                                 val detailPart = if (

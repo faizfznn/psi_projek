@@ -3,6 +3,7 @@ package com.kelompok2.scarla.ui.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -11,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -209,7 +211,7 @@ fun InformatikaCard(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isCompleted) Success.copy(alpha = 0.12f) else Neutral50
+            containerColor = if (isCompleted) Success.copy(alpha = 0.08f) else Neutral50
         )
     ) {
 
@@ -224,20 +226,41 @@ fun InformatikaCard(
             if (isCompleted) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .padding(top = 2.dp),
                     contentAlignment = Alignment.TopEnd
                 ) {
                     Box(
                         modifier = Modifier
-                            .background(Success, RoundedCornerShape(20.dp))
+                            .background(
+                                color = Color(0xFFE8F8EE),
+                                shape = RoundedCornerShape(999.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = Success,
+                                shape = RoundedCornerShape(999.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text(
-                            text = "Selesai",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelSmall
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Success,
+                                modifier = Modifier.size(14.dp)
+                            )
+
+                            Text(
+                                text = "Selesai",
+                                color = Success,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
                 }
             }

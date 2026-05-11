@@ -137,7 +137,7 @@ fun HtmlScreen(
             }
 
             if (materiList.isEmpty() && !quizId.isNullOrBlank()) {
-                navController.navigate("quiz/${quizId}") {
+                navController.navigate(Screen.MaterialQuiz.createRoute(quizId!!, materialId)) {
                     popUpTo("material/$materialId") { inclusive = true }
                 }
                 return@LaunchedEffect
@@ -437,7 +437,7 @@ fun HtmlScreen(
                             text = "Mulai",
                             onClick = {
                                 quizId?.let { id ->
-                                    navController.navigate("quiz/$id")
+                                    navController.navigate(Screen.MaterialQuiz.createRoute(id, materialId))
                                 }
                             },
 
