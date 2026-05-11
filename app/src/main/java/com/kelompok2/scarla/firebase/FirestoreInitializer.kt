@@ -358,6 +358,14 @@ object FirestoreInitializer {
         val uid = auth.currentUser?.uid ?: return@withContext
         try {
             val userRef = db.collection("users").document(uid)
+            val safeTitle = lessonTitle.replace("/", "-").take(50)
+            val lessonRef = userRef.collection("materials").document(safeTitle)
+            val lessonSnap = lessonRef.get().await()
+
+            if (lessonSnap.exists()) {
+                Log.d(TAG, "✅ Lesson $lessonTitle sudah tercatat untuk uid=$uid, skip increment")
+                return@withContext
+            }
 
             // 1. Increment materialsCompleted di dokumen user (sync ProfilScreen)
             // Gunakan set+merge karena update() gagal jika field belum ada
@@ -371,8 +379,7 @@ object FirestoreInitializer {
 
             // 2. Tulis ke sub-koleksi materials/{title} agar ProfilScreen
             //    bisa menghitung streak dari completedAt tiap materi
-            val safeTitle = lessonTitle.replace("/", "-").take(50)
-            userRef.collection("materials").document(safeTitle).set(
+            lessonRef.set(
                 mapOf(
                     "subject" to lessonTitle,
                     "completedAt" to FieldValue.serverTimestamp()

@@ -25,6 +25,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.kelompok2.scarla.data.remote.ScarlaApi
 import com.kelompok2.scarla.data.remote.SubmitQuizRequest
+import com.kelompok2.scarla.firebase.FirestoreInitializer
 import com.kelompok2.scarla.ui.components.*
 import kotlinx.coroutines.launch
 
@@ -417,6 +418,8 @@ fun QuizHtmlScreen(
                                 if (response == null) {
                                     throw IllegalStateException("Submit response is empty")
                                 }
+
+                                FirestoreInitializer.recordLessonCompleted(quizId)
 
                                 val scorePart = response.score?.let { "Skor: $it" } ?: "Quiz selesai"
                                 val detailPart = if (

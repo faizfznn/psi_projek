@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -27,6 +28,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.kelompok2.scarla.R
 import com.kelompok2.scarla.data.remote.ScarlaApi
 import com.kelompok2.scarla.navigation.Screen
@@ -42,6 +45,28 @@ data class InformatikaItem(
 
 @Composable
 fun InformatikaScreen(navController: NavController) {
+
+    val auth = remember { FirebaseAuth.getInstance() }
+    val firestore = remember { FirebaseFirestore.getInstance() }
+    val uid = auth.currentUser?.uid
+
+    val completedMaterialIds by produceState(initialValue = emptySet<String>(), uid) {
+        if (uid.isNullOrBlank()) {
+            value = emptySet()
+            return@produceState
+        }
+
+        val listener = firestore.collection("users")
+            .document(uid)
+            .collection("materials")
+            .addSnapshotListener { snap, _ ->
+                value = snap?.documents?.map { it.id }?.toSet().orEmpty()
+            }
+
+        awaitDispose {
+            listener.remove()
+        }
+    }
 
     var materiList by remember { mutableStateOf<List<InformatikaItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -154,6 +179,7 @@ fun InformatikaScreen(navController: NavController) {
 
                         InformatikaCard(
                             item = item,
+                            isCompleted = item.id in completedMaterialIds,
                             onClick = {
                                 navController.navigate(
                                     Screen.MaterialDetail.createRoute(item.id)
@@ -170,6 +196,7 @@ fun InformatikaScreen(navController: NavController) {
 @Composable
 fun InformatikaCard(
     item: InformatikaItem,
+    isCompleted: Boolean = false,
     onClick: () -> Unit
 ) {
 
@@ -182,7 +209,7 @@ fun InformatikaCard(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Neutral50
+            containerColor = if (isCompleted) Success.copy(alpha = 0.12f) else Neutral50
         )
     ) {
 
@@ -193,6 +220,27 @@ fun InformatikaCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
+
+            if (isCompleted) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(Success, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Selesai",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+            }
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -223,7 +271,7 @@ fun InformatikaCard(
             }
 
             AppButton(
-                text = "Mulai",
+                text = if (isCompleted) "Ulangi" else "Mulai",
                 onClick = onClick,
 
                 modifier = Modifier.fillMaxWidth(),
