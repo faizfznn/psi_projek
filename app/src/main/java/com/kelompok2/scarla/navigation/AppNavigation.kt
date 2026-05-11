@@ -38,8 +38,10 @@ import com.kelompok2.scarla.ui.screens.SignupScreen
 import com.kelompok2.scarla.ui.screens.SplashScreen
 import com.kelompok2.scarla.ui.screens.HtmlScreen
 import com.kelompok2.scarla.ui.screens.QuizHtmlScreen
+import com.kelompok2.scarla.ui.screens.AchievementPage
 import com.kelompok2.scarla.ui.screens.ChatPage
 import com.kelompok2.scarla.ui.screens.ChatRoomPage
+// no local progress imports
 
 private val firestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -62,6 +64,18 @@ sealed class Screen(val route: String) {
     object Mbti : Screen("mbti_screen")
     object Interests : Screen("interests_screen")
     object Streak : Screen("streak_screen")
+    object MaterialDetail : Screen("material/{materialId}") {
+        fun createRoute(materialId: String): String {
+            val encoded = java.net.URLEncoder.encode(materialId, "UTF-8")
+            return "material/$encoded"
+        }
+    }
+    object MaterialQuiz : Screen("quiz/{quizId}") {
+        fun createRoute(quizId: String): String {
+            val encoded = java.net.URLEncoder.encode(quizId, "UTF-8")
+            return "quiz/$encoded"
+        }
+    }
     object HtmlScreen : Screen("html_screen")
     object Achievement : Screen("achievement_screen")
     object FriendRequests : Screen("friend_requests_screen")
@@ -301,11 +315,35 @@ fun AppNavigation() {
         }
 
         composable("html_screen") {
-            HtmlScreen(navController = navController)
+            HtmlScreen(navController = navController, materialId = "html")
         }
 
         composable("quiz_html") {
-            QuizHtmlScreen(navController = navController)
+            QuizHtmlScreen(navController = navController, quizId = "html")
+        }
+
+        composable(
+            route = Screen.MaterialDetail.route,
+            arguments = listOf(
+                androidx.navigation.navArgument("materialId") {
+                    type = androidx.navigation.NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val materialId = backStackEntry.arguments?.getString("materialId") ?: "html"
+            HtmlScreen(navController = navController, materialId = materialId)
+        }
+
+        composable(
+            route = Screen.MaterialQuiz.route,
+            arguments = listOf(
+                androidx.navigation.navArgument("quizId") {
+                    type = androidx.navigation.NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val quizId = backStackEntry.arguments?.getString("quizId") ?: "html"
+            QuizHtmlScreen(navController = navController, quizId = quizId)
         }
 
         composable(Screen.Achievement.route) {

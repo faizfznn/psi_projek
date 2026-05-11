@@ -13,6 +13,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -23,52 +28,43 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.kelompok2.scarla.R
+import com.kelompok2.scarla.data.remote.ScarlaApi
+import com.kelompok2.scarla.navigation.Screen
 import com.kelompok2.scarla.ui.theme.*
 import com.kelompok2.scarla.ui.components.*
 
 data class InformatikaItem(
+    val id: String,
     val title: String,
     val subtitle: String,
-    val icon: Int,
-    val route: String? = null
+    val icon: Int
 )
 
 @Composable
 fun InformatikaScreen(navController: NavController) {
 
-    val materiList = listOf(
-        InformatikaItem(
-            "HTML",
-            "HTML dasar",
-            R.drawable.ic_html,
-            "html_screen"
-        ),
-        InformatikaItem(
-            "CSS",
-            "CSS dasar",
-            R.drawable.ic_css
-        ),
-        InformatikaItem(
-            "Javascript",
-            "Javascript dasar",
-            R.drawable.ic_javascript
-        ),
-        InformatikaItem(
-            "Java",
-            "Java dasar",
-            R.drawable.ic_java
-        ),
-        InformatikaItem(
-            "Python",
-            "Python dasar",
-            R.drawable.ic_python
-        ),
-        InformatikaItem(
-            "C#",
-            "C# dasar",
-            R.drawable.ic_csharp
-        )
-    )
+    var materiList by remember { mutableStateOf<List<InformatikaItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val materials = ScarlaApi.service.getMaterials().data.orEmpty()
+            materiList = materials.map { material ->
+                InformatikaItem(
+                    id = material.id,
+                    title = material.title,
+                    subtitle = material.description ?: "Materi dasar",
+                    icon = materialIcon(material.id, material.title)
+                )
+            }
+        } catch (e: Exception) {
+            errorMessage = "Backend belum terhubung, tampilkan materi default"
+            materiList = fallbackInformatikaItems()
+        } finally {
+            isLoading = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -124,26 +120,48 @@ fun InformatikaScreen(navController: NavController) {
             }
         }
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(bottom = 20.dp)
-        ) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Primary500)
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage.orEmpty(),
+                        color = Neutral700,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
 
-            items(materiList) { item ->
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(bottom = 20.dp)
+                ) {
 
-                InformatikaCard(
-                    item = item,
-                    onClick = {
-                        item.route?.let {
-                            navController.navigate(it)
-                        }
+                    items(materiList, key = { it.id }) { item ->
+
+                        InformatikaCard(
+                            item = item,
+                            onClick = {
+                                navController.navigate(
+                                    Screen.MaterialDetail.createRoute(item.id)
+                                )
+                            }
+                        )
                     }
-                )
+                }
             }
         }
     }
@@ -213,5 +231,29 @@ fun InformatikaCard(
                 buttonType = ButtonType.PRIMARY
             )
         }
+    }
+}
+
+private fun fallbackInformatikaItems(): List<InformatikaItem> {
+    return listOf(
+        InformatikaItem("html", "HTML", "HTML dasar", R.drawable.ic_html),
+        InformatikaItem("css", "CSS", "CSS dasar", R.drawable.ic_css),
+        InformatikaItem("javascript", "Javascript", "Javascript dasar", R.drawable.ic_javascript),
+        InformatikaItem("java", "Java", "Java dasar", R.drawable.ic_java),
+        InformatikaItem("python", "Python", "Python dasar", R.drawable.ic_python),
+        InformatikaItem("csharp", "C#", "C# dasar", R.drawable.ic_csharp)
+    )
+}
+
+private fun materialIcon(id: String, title: String): Int {
+    val key = "$id $title".lowercase()
+    return when {
+        "html" in key -> R.drawable.ic_html
+        "css" in key -> R.drawable.ic_css
+        "javascript" in key || "js" in key -> R.drawable.ic_javascript
+        "java" in key -> R.drawable.ic_java
+        "python" in key -> R.drawable.ic_python
+        "c#" in key || "csharp" in key || "c-sharp" in key -> R.drawable.ic_csharp
+        else -> R.drawable.ic_html
     }
 }

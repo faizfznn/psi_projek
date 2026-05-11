@@ -34,64 +34,64 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.MaterialTheme
+import com.kelompok2.scarla.data.remote.ScarlaApi
 import com.kelompok2.scarla.ui.theme.*
 import com.kelompok2.scarla.ui.components.*
+import com.kelompok2.scarla.navigation.Screen
 
 data class MateriItem(
+    val id: String,
     val title: String,
     val duration: String,
-    val videoRes: Int,
-    var downloaded: Boolean = false,
-    var finished: Boolean = false
+    val videoUrl: String
 )
 
 @Composable
-fun HtmlScreen(navController: NavController) {
+fun HtmlScreen(
+    navController: NavController,
+    materialId: String
+) {
 
     val context = LocalContext.current
 
-    val downloadedList = rememberSaveable(
-        saver = listSaver(
-            save = { it.toList() },
-            restore = { it.toMutableStateList() }
-        )
-    ) {
-        mutableStateListOf(false, false, false)
+    var materiList by remember(materialId) {
+        mutableStateOf<List<MateriItem>>(emptyList())
     }
 
-    val finishedList = rememberSaveable(
-        saver = listSaver(
-            save = { it.toList() },
-            restore = { it.toMutableStateList() }
-        )
-    ) {
-        mutableStateListOf(false, false, false)
+    var materialTitle by remember(materialId) {
+        mutableStateOf(materialId.uppercase())
     }
 
-    val materiList = listOf(
-        MateriItem(
-            "HTML dasar - Pendahuluan",
-            "05:20",
-            R.raw.html_intro
-        ),
-        MateriItem(
-            "HTML dasar - Tag",
-            "08:11",
-            R.raw.html_tag
-        ),
-        MateriItem(
-            "HTML dasar - Form",
-            "07:42",
-            R.raw.html_form
-        )
-    )
-
-    var selectedVideo by rememberSaveable {
-        mutableStateOf<Int?>(null)
+    var quizId by remember(materialId) {
+        mutableStateOf<String?>(null)
     }
 
-    var selectedIndex by rememberSaveable {
+    var isLoading by remember(materialId) {
+        mutableStateOf(true)
+    }
+
+    var errorMessage by remember(materialId) {
+        mutableStateOf<String?>(null)
+    }
+
+    var selectedVideo by rememberSaveable(materialId) {
+        mutableStateOf<String?>(null)
+    }
+
+    var selectedIndex by rememberSaveable(materialId) {
         mutableStateOf(-1)
+    }
+
+    val downloadedList = remember(materialId, materiList.size) {
+        mutableStateListOf<Boolean>().apply {
+            repeat(materiList.size) { add(false) }
+        }
+    }
+
+    val finishedList = remember(materialId, materiList.size) {
+        mutableStateListOf<Boolean>().apply {
+            repeat(materiList.size) { add(false) }
+        }
     }
 
     var showDownloadDialog by rememberSaveable {
@@ -102,17 +102,75 @@ fun HtmlScreen(navController: NavController) {
         mutableStateOf(false)
     }
 
-    var exoPlayer by remember {
-        mutableStateOf<ExoPlayer?>(null)
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build()
     }
 
-    val allFinished = finishedList.all { it }
+    val allFinished = materiList.isNotEmpty() && finishedList.all { it }
+
+    LaunchedEffect(materialId) {
+        isLoading = true
+        errorMessage = null
+        selectedVideo = null
+        selectedIndex = -1
+
+        try {
+            val material = ScarlaApi.service.getMaterial(materialId)
+            val materialData = material.data
+
+            if (materialData == null) {
+                throw IllegalStateException("Material data is empty")
+            }
+
+            materialTitle = materialData.title
+            quizId = materialData.quizId
+                ?: materialData.quizzes.firstOrNull()?.quizId
+                ?: materialData.id
+
+            materiList = materialData.videos.map { video ->
+                MateriItem(
+                    id = video.id,
+                    title = video.title,
+                    duration = video.duration ?: "--:--",
+                    videoUrl = normalizeVideoUrl(video.videoRes ?: video.videoUrl ?: video.url.orEmpty())
+                )
+            }
+
+            if (materiList.isEmpty() && !quizId.isNullOrBlank()) {
+                navController.navigate("quiz/${quizId}") {
+                    popUpTo("material/$materialId") { inclusive = true }
+                }
+                return@LaunchedEffect
+            }
+        } catch (e: Exception) {
+            materialTitle = materialId.uppercase()
+            quizId = materialId
+            materiList = emptyList()
+            errorMessage = "Gagal memuat materi dari server"
+            Log.e("HtmlScreen", "Error loading material: ${e.message}")
+        } finally {
+            isLoading = false
+        }
+    }
 
     // Release player saat component unmount
     DisposableEffect(Unit) {
         onDispose {
-            exoPlayer?.release()
-            exoPlayer = null
+            exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(selectedVideo) {
+        selectedVideo?.let { videoUrl ->
+            try {
+                val videoUri = Uri.parse(videoUrl)
+                Log.d("HtmlScreen", "Loading video URI: $videoUri")
+                exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+                exoPlayer.prepare()
+                exoPlayer.playWhenReady = true
+            } catch (e: Exception) {
+                Log.e("HtmlScreen", "Error loading video: ${e.message}")
+            }
         }
     }
 
@@ -164,7 +222,7 @@ fun HtmlScreen(navController: NavController) {
                 Spacer(modifier = Modifier.width(14.dp))
 
                 Text(
-                    text = "HTML",
+                    text = materialTitle,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -180,7 +238,16 @@ fun HtmlScreen(navController: NavController) {
             shape = RoundedCornerShape(12.dp)
         ) {
 
-            if (selectedVideo == null) {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Neutral50),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Primary500)
+                }
+            } else if (selectedVideo == null) {
 
                     Box(
                         modifier = Modifier
@@ -209,52 +276,23 @@ fun HtmlScreen(navController: NavController) {
                         .background(Color.Black),
                     contentAlignment = Alignment.Center
                 ) {
-                    var playerInitialized by remember { mutableStateOf(false) }
-                    
-                    DisposableEffect(selectedVideo) {
-                        try {
-                            exoPlayer?.release()
-                            exoPlayer = null
-                            
-                            exoPlayer = ExoPlayer.Builder(context).build().apply {
-                                val videoUri = Uri.parse(
-                                    "android.resource://${context.packageName}/${selectedVideo}"
-                                )
-                                Log.d("HtmlScreen", "Loading video URI: $videoUri")
-                                setMediaItem(MediaItem.fromUri(videoUri))
-                                prepare()
-                                playWhenReady = true
-                                playerInitialized = true
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = true
+                                controllerShowTimeoutMs = 5000
                             }
-                        } catch (e: Exception) {
-                            Log.e("HtmlScreen", "Error initializing player: ${e.message}")
-                            playerInitialized = false
-                        }
-
-                        onDispose {
-                            exoPlayer?.release()
-                            exoPlayer = null
-                        }
-                    }
-
-                    if (playerInitialized && exoPlayer != null) {
-                        AndroidView(
-                            factory = { ctx ->
-                                PlayerView(ctx).apply {
-                                    player = exoPlayer
-                                    useController = true
-                                    controllerShowTimeoutMs = 5000
-                                }
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        CircularProgressIndicator(color = Color.White)
-                    }
+                        },
+                        update = { view ->
+                            view.player = exoPlayer
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 LaunchedEffect(selectedVideo, selectedIndex) {
-                    delay(5000)
+                    delay(1000)
 
                     if (selectedIndex != -1) {
                         finishedList[selectedIndex] = true
@@ -327,12 +365,12 @@ fun HtmlScreen(navController: NavController) {
                         Spacer(modifier = Modifier.width(8.dp))
 
                         Button(
-                            enabled = downloadedList[index],
+                            enabled = downloadedList[index] && item.videoUrl.isNotBlank(),
                             onClick = {
                                 selectedIndex = index
 
                                 selectedVideo = null
-                                selectedVideo = item.videoRes
+                                selectedVideo = item.videoUrl
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor =
@@ -398,16 +436,38 @@ fun HtmlScreen(navController: NavController) {
                         AppButton(
                             text = "Mulai",
                             onClick = {
-                                navController.navigate("quiz_html")
+                                quizId?.let { id ->
+                                    navController.navigate("quiz/$id")
+                                }
                             },
 
-                            enabled = allFinished,
+                            enabled = allFinished && !quizId.isNullOrBlank(),
 
                             modifier = Modifier.wrapContentWidth(),
 
                             buttonType = ButtonType.PRIMARY
                         )
                     }
+                }
+            }
+
+            if (!isLoading && errorMessage != null) {
+                item {
+                    Text(
+                        text = errorMessage.orEmpty(),
+                        color = Error,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
+            if (!isLoading && materiList.isEmpty()) {
+                item {
+                    Text(
+                        text = "Belum ada video untuk materi ini",
+                        color = Neutral700,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
             }
         }
@@ -423,7 +483,9 @@ fun HtmlScreen(navController: NavController) {
             showDownloadDialog = false
             showSuccessDialog = true
 
-            downloadedList[selectedIndex] = true
+            if (selectedIndex in downloadedList.indices) {
+                downloadedList[selectedIndex] = true
+            }
         }
 
         AlertDialog(
@@ -485,5 +547,22 @@ fun HtmlScreen(navController: NavController) {
                 }
             }
         )
+    }
+}
+
+private fun normalizeVideoUrl(rawUrl: String): String {
+    if (rawUrl.isBlank()) return rawUrl
+
+    return when {
+        rawUrl.contains("localhost:3000") -> rawUrl.replace(
+            "http://localhost:3000",
+            "https://be-scarla.vercel.app"
+        )
+        rawUrl.contains("127.0.0.1:3000") -> rawUrl.replace(
+            "http://127.0.0.1:3000",
+            "https://be-scarla.vercel.app"
+        )
+        rawUrl.startsWith("/") -> "https://be-scarla.vercel.app$rawUrl"
+        else -> rawUrl
     }
 }

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -22,83 +23,112 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.kelompok2.scarla.data.remote.ScarlaApi
+import com.kelompok2.scarla.data.remote.SubmitQuizRequest
 import com.kelompok2.scarla.ui.components.*
+import kotlinx.coroutines.launch
 
 data class QuizQuestion(
+    val id: String,
     val question: String,
     val options: List<String>,
-    val answer: String
+    val answer: String,
+    val explanation: String? = null
 )
 
 @Composable
-fun QuizHtmlScreen(navController: NavController) {
+fun QuizHtmlScreen(
+    navController: NavController,
+    quizId: String
+) {
 
-    val questions = listOf(
+    val scope = rememberCoroutineScope()
 
-            QuizQuestion(
-                "HTML adalah...",
-                listOf(
-                    "Bahasa pemrograman",
-                    "Markup language",
-                    "Database",
-                    "Framework"
-                ),
-                "Markup language"
-            ),
+    var quizTitle by remember { mutableStateOf("Quiz") }
+    var questions by remember { mutableStateOf<List<QuizQuestion>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var submitResultMessage by remember { mutableStateOf<String?>(null) }
 
-        QuizQuestion(
-            "Tag untuk paragraf adalah...",
-            listOf("<p>", "<h1>", "<div>", "<a>"),
-            "<p>"
-        ),
+    LaunchedEffect(quizId) {
+        isLoading = true
+        errorMessage = null
 
-        QuizQuestion(
-            "Tag heading terbesar?",
-            listOf("h6", "h4", "h1", "h2"),
-            "h1"
-        ),
+        try {
+            val quiz = ScarlaApi.service.getQuiz(quizId).data
+            if (quiz == null) {
+                throw IllegalStateException("Quiz data is empty")
+            }
 
-        QuizQuestion(
-            "Tag link HTML?",
-            listOf("<a>", "<img>", "<p>", "<ul>"),
-            "<a>"
-        ),
+            quizTitle = quiz.title
+            questions = quiz.questions.mapIndexed { index, question ->
+                QuizQuestion(
+                    id = question.id ?: "q_${index + 1}",
+                    question = question.question,
+                    options = question.options,
+                    answer = question.correctAnswer ?: question.answer.orEmpty(),
+                    explanation = question.explanation
+                )
+            }
+        } catch (e: Exception) {
+            errorMessage = "Gagal memuat quiz dari server"
+            questions = emptyList()
+        } finally {
+            isLoading = false
+        }
+    }
 
-        QuizQuestion(
-            "HTML digunakan untuk?",
-            listOf(
-                "Membuat tampilan web",
-                "AI",
-                "Database",
-                "Game engine"
-            ),
-            "Membuat tampilan web"
-        )
-    )
-
-    var currentQuestion by remember {
+    var currentQuestion by rememberSaveable(quizId) {
         mutableStateOf(0)
     }
 
-    // jawaban sementara sebelum submit
-    var selectedAnswer by remember {
-        mutableStateOf("")
-    }
-
     // jawaban final tiap soal
-    val answers = remember {
-        mutableStateListOf("", "", "", "", "")
+    val answers = remember(quizId, questions.size) {
+        mutableStateListOf<String>().apply {
+            repeat(questions.size) { add("") }
+        }
     }
 
     // status submit tiap soal
-    val submitted = remember {
-        mutableStateListOf(false, false, false, false, false)
+    val submitted = remember(quizId, questions.size) {
+        mutableStateListOf<Boolean>().apply {
+            repeat(questions.size) { add(false) }
+        }
+    }
+
+    LaunchedEffect(questions.size) {
+        if (questions.isNotEmpty() && currentQuestion > questions.lastIndex) {
+            currentQuestion = 0
+        }
+    }
+
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF5F5F5)),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = Primary500)
+        }
+        return
+    }
+
+    if (questions.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF5F5F5))
+                .padding(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = errorMessage ?: "Quiz belum tersedia")
+        }
+        return
     }
 
     val question = questions[currentQuestion]
-
-    // kalau pernah jawab sebelumnya
-    selectedAnswer = answers[currentQuestion]
+    val selectedAnswer = answers[currentQuestion]
 
     val progress =
         (currentQuestion + 1).toFloat() / questions.size.toFloat()
@@ -130,7 +160,7 @@ fun QuizHtmlScreen(navController: NavController) {
             Spacer(modifier = Modifier.width(8.dp))
 
             Text(
-                text = "Quiz HTML",
+                text = quizTitle,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -185,7 +215,7 @@ fun QuizHtmlScreen(navController: NavController) {
         // PERTANYAAN DI LUAR CARD
         Text(
             text = question.question,
-            style = MaterialTheme.typography.displaySmall,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.ExtraBold,
         )
 
@@ -239,7 +269,7 @@ fun QuizHtmlScreen(navController: NavController) {
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp)
                                 .clickable(enabled = !isSubmitted) {
-                                    selectedAnswer = option
+                                    answers[currentQuestion] = option
                                 },
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = backgroundColor),
@@ -275,6 +305,35 @@ fun QuizHtmlScreen(navController: NavController) {
                                         tint = Color.White
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    if (submitted[currentQuestion] && !question.explanation.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Success.copy(alpha = 0.14f)),
+                            border = BorderStroke(1.dp, Success)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp)
+                            ) {
+                                Text(
+                                    text = "Pembahasan",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Success
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = question.explanation.orEmpty(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Neutral900
+                                )
                             }
                         }
                     }
@@ -345,6 +404,36 @@ fun QuizHtmlScreen(navController: NavController) {
                     if (currentQuestion < questions.lastIndex) {
 
                         currentQuestion++
+                    } else {
+                        scope.launch {
+                            val answerList = answers.toList()
+
+                            submitResultMessage = try {
+                                val response = ScarlaApi.service.submitQuiz(
+                                    quizId = quizId,
+                                    request = SubmitQuizRequest(answerList)
+                                ).data
+
+                                if (response == null) {
+                                    throw IllegalStateException("Submit response is empty")
+                                }
+
+                                val scorePart = response.score?.let { "Skor: $it" } ?: "Quiz selesai"
+                                val detailPart = if (
+                                    response.correctAnswers != null &&
+                                    response.totalQuestions != null
+                                ) {
+                                    " (${response.correctAnswers}/${response.totalQuestions})"
+                                } else {
+                                    ""
+                                }
+
+                                response.message?.let { "$scorePart$detailPart\n$it" }
+                                    ?: "$scorePart$detailPart"
+                            } catch (e: Exception) {
+                                "Quiz selesai, tapi gagal kirim jawaban ke server"
+                            }
+                        }
                     }
                 },
 
@@ -356,6 +445,31 @@ fun QuizHtmlScreen(navController: NavController) {
             )
         }
     }
+
+    if (submitResultMessage != null) {
+        AlertDialog(
+            onDismissRequest = {
+                submitResultMessage = null
+                navController.popBackStack()
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        submitResultMessage = null
+                        navController.popBackStack()
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            title = {
+                Text("Hasil Quiz")
+            },
+            text = {
+                Text(submitResultMessage.orEmpty())
+            }
+        )
+    }
 }
 
 @Preview(showBackground = true, showSystemUi = true)
@@ -365,6 +479,7 @@ fun QuizHtmlScreenPreview() {
     val navController = rememberNavController()
 
     QuizHtmlScreen(
-        navController = navController
+        navController = navController,
+        quizId = "html"
     )
 }
